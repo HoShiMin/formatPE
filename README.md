@@ -75,7 +75,7 @@ In other words, you always know which type you deal with - so, you can't parse a
 * Constants
 * Static and dynamic members of classes and structs
 
-Usage:  
+#### Usage:  
 Include the **Pdb/Pdb.cpp** and the **Pdb/Pdb.h** to your project and (**important!**) put **dbghelp.dll** and **symsrv.dll** to the folder with your executable: it's necessary to download symbols from a symbol servers.  
 You can find these libraries in the folder of your SDK (e.g. "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22000\\[x32 or x64]").
 ```cpp
