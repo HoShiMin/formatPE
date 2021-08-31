@@ -1,8 +1,9 @@
-# format**PE**
+# ♟️ format**PE**
 ## A bunch of PE and PDB parsers written in C++
 ## **Pe++**
 This header-only library provides a convinient way to represent a PE-file as an enumerable object.  
 #### The library supports enumeration of:
+* Sections
 * Imports
 * Exports
 * Relocations
