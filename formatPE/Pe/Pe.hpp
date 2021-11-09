@@ -1740,7 +1740,8 @@ public:
 
         const GenericTypes::Eat* eat() const
         {
-            return &m_eat[m_index];
+            const auto ord = m_ordinals[m_index];
+            return &m_eat[ord];
         }
 
         ExportType type() const
