@@ -10,7 +10,7 @@ extern "C" __declspec(dllexport) unsigned int PeExportedTestValue = 0x1ee7c0de;
 
 void testPe()
 {
-    const auto pe = Pe::Pe::fromModule(GetModuleHandleW(nullptr));
+    const auto pe = Pe::Pe::fromModule(GetModuleHandleW(L"ntdll.dll"));
     assert(pe.valid());
 
     printf("Imports:\n");

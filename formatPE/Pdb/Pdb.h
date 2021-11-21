@@ -1318,6 +1318,18 @@ public:
 };
 
 
+
+class SymPublicSymbol : public Sym, public TagClassificator<SymTag::PublicSymbol>
+{
+public:
+    using Sym::Sym;
+
+    using Sym::name;
+    using Sym::address;
+    using Sym::size;
+};
+
+
 class Mod
 {
 private:
