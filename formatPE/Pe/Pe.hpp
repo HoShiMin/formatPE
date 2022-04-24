@@ -9,6 +9,8 @@
 namespace Pe
 {
 
+
+
 enum class Arch : unsigned char
 {
     unknown,
@@ -57,7 +59,7 @@ struct Reloc
     unsigned short offsetInPage : 12;
     unsigned short rawType : 4; // IMG_REL_BASED_***
 
-    RelocType type() const
+    RelocType type() const noexcept
     {
         switch (rawType)
         {
@@ -109,7 +111,7 @@ struct GenericTypes
 
         Reloc relocs[1];
 
-        unsigned int count() const
+        unsigned int count() const noexcept
         {
             return hdr.relocsSizeInBytes / sizeof(Reloc);
         }
@@ -140,12 +142,12 @@ struct Types<Arch::x32> : public GenericTypes
         unsigned int reserved : 31;
         unsigned int importByOrdinal : 1;
 
-        bool valid() const
+        bool valid() const noexcept
         {
             return raw != 0;
         }
 
-        ImportType type() const
+        ImportType type() const noexcept
         {
             if (!valid())
             {
@@ -182,12 +184,12 @@ struct Types<Arch::x64> : public GenericTypes
         unsigned long long reserved : 63;
         unsigned long long importByOrdinal : 1;
 
-        bool valid() const
+        bool valid() const noexcept
         {
             return raw != 0;
         }
 
-        ImportType type() const
+        ImportType type() const noexcept
         {
             if (!valid())
             {
@@ -228,8 +230,8 @@ class Exceptions;
 
 struct PeMagic
 {
-    static constexpr auto k_mz = 0x5A4Du; // MZ
-    static constexpr auto k_pe = 0x00004550u; // "PE\0\0"
+    static constexpr auto k_mz = 0x5A4Dui16; // MZ
+    static constexpr auto k_pe = 0x00004550ui32; // "PE\0\0"
 };
 
 template <Arch arch>
@@ -248,31 +250,31 @@ private:
     const void* const m_base;
 
 public:
-    explicit PeHeaders(const void* base) : m_base(base)
+    explicit PeHeaders(const void* const base) noexcept : m_base(base)
     {
     }
 
-    const DosHeader* dos() const
+    const DosHeader* dos() const noexcept
     {
         return static_cast<const DosHeader*>(m_base);
     }
 
-    const NtHeaders* nt() const
+    const NtHeaders* nt() const noexcept
     {
         return reinterpret_cast<const NtHeaders*>(static_cast<const unsigned char*>(m_base) + dos()->e_lfanew);
     }
 
-    const OptHeader* opt() const
+    const OptHeader* opt() const noexcept
     {
         return &nt()->OptionalHeader;
     }
 
-    const void* mod() const
+    const void* mod() const noexcept
     {
         return m_base;
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         const auto* const dosHdr = dos();
         if (!dosHdr)
@@ -303,7 +305,7 @@ public:
 
 struct PeArch
 {
-    static Arch classify(const void* const base)
+    static Arch classify(const void* const base) noexcept
     {
         if (PeHeaders<Arch::native>(base).valid())
         {
@@ -324,13 +326,13 @@ struct PeArch
 struct Aligner
 {
     template <typename Type>
-    static constexpr Type alignDown(Type value, Type factor)
+    static constexpr Type alignDown(const Type value, const Type factor) noexcept
     {
         return value & ~(factor - 1);
     }
 
     template <typename Type>
-    static constexpr Type alignUp(Type value, Type factor)
+    static constexpr Type alignUp(const Type value, const Type factor) noexcept
     {
         return alignDown<Type>(value - 1, factor) + factor;
     }
@@ -348,25 +350,22 @@ private:
     const ImgType m_type;
 
 public:
-    Pe(ImgType type, const void* base) : m_base(base), m_arch(PeArch::classify(base)), m_type(type)
+    Pe(const ImgType type, const void* const base) noexcept : m_base(base), m_arch(PeArch::classify(base)), m_type(type)
     {
     }
 
-    Pe(const Pe&) = default;
-    Pe(Pe&&) = default;
-
-    static Pe fromFile(const void* base)
+    static Pe fromFile(const void* const base) noexcept
     {
         return Pe(ImgType::file, base);
     }
 
-    static Pe fromModule(const void* base)
+    static Pe fromModule(const void* const base) noexcept
     {
         return Pe(ImgType::module, base);
     }
 
     template <Arch arch>
-    PeHeaders<arch> headers() const
+    PeHeaders<arch> headers() const noexcept
     {
         if (arch == m_arch)
         {
@@ -379,7 +378,7 @@ public:
     }
 
     template <typename Type>
-    const Type* byRva(Rva rva) const
+    const Type* byRva(const Rva rva) const noexcept
     {
         if (m_type == ImgType::module)
         {
@@ -444,12 +443,12 @@ public:
     }
 
     template <typename Type>
-    const Type* byOffset(unsigned int offset) const
+    const Type* byOffset(const unsigned int offset) const noexcept
     {
         return reinterpret_cast<const Type*>(reinterpret_cast<const unsigned char*>(m_base) + offset);
     }
 
-    const ImgDataDir* dir(unsigned int id) const
+    const ImgDataDir* dir(const unsigned int id) const noexcept
     {
         switch (m_arch)
         {
@@ -469,7 +468,7 @@ public:
     }
 
     template <typename DirType>
-    typename const DirType::Type* dir() const
+    typename const typename DirType::Type* dir() const noexcept
     {
         const auto* const dirHdr = dir(DirType::k_id);
         if (!dirHdr->Size)
@@ -480,7 +479,7 @@ public:
         return byRva<typename DirType::Type>(dirHdr->VirtualAddress);
     }
 
-    unsigned long long imageBase() const
+    unsigned long long imageBase() const noexcept
     {
         switch (m_arch)
         {
@@ -499,7 +498,7 @@ public:
         }
     }
 
-    unsigned long imageSize() const
+    unsigned long imageSize() const noexcept
     {
         switch (m_arch)
         {
@@ -518,7 +517,7 @@ public:
         }
     }
 
-    unsigned long long entryPoint() const
+    unsigned long long entryPoint() const noexcept
     {
         switch (m_arch)
         {
@@ -537,30 +536,29 @@ public:
         }
     }
 
-    Arch arch() const
+    Arch arch() const noexcept
     {
         return m_arch;
     }
 
-    ImgType type() const
+    ImgType type() const noexcept
     {
         return m_type;
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         return arch() != Arch::unknown;
     }
 
-    Sections sections() const;
-    Imports imports() const;
-    DelayedImports delayedImports() const;
-    BoundImports boundImports() const;
-    Exports exports() const;
-    Relocs relocs() const;
-    Exceptions exceptions() const;
+    Sections sections() const noexcept;
+    Imports imports() const noexcept;
+    DelayedImports delayedImports() const noexcept;
+    BoundImports boundImports() const noexcept;
+    Exports exports() const noexcept;
+    Relocs relocs() const noexcept;
+    Exceptions exceptions() const noexcept;
 };
-
 
 
 
@@ -574,7 +572,7 @@ public:
         unsigned int m_pos;
 
     public:
-        Iterator(const Sections& owner, unsigned int pos)
+        Iterator(const Sections& owner, const unsigned int pos) noexcept
             : m_owner(owner)
             , m_pos(pos)
         {
@@ -584,87 +582,87 @@ public:
             }
         }
 
-        Iterator& operator ++ ()
+        Iterator& operator ++ () noexcept
         {
-            if (m_pos > m_owner.count())
+            if (m_pos < m_owner.count())
             {
-                return *this;
+                ++m_pos;
             }
-
-            ++m_pos;
 
             return *this;
         }
 
-        Iterator operator ++ (int)
+        Iterator operator ++ (int) noexcept
         {
             const auto it = *this;
             ++(*this);
             return it;
         }
 
-        bool operator == (const Iterator& it) const
+        bool operator == (const Iterator& it) const noexcept
         {
             return (m_pos == it.m_pos) && (m_owner.sections() == it.m_owner.sections());
         }
 
-        bool operator != (const Iterator& it) const
+        bool operator != (const Iterator& it) const noexcept
         {
             return !operator == (it);
         }
 
-        const GenericTypes::SecHeader& operator * () const
+        const typename GenericTypes::SecHeader& operator * () const noexcept
         {
             return *operator -> ();
         }
 
-        const GenericTypes::SecHeader* operator -> () const
+        const typename GenericTypes::SecHeader* operator -> () const noexcept
         {
-            return m_owner.sections() + m_pos;
+            return &m_owner.sections()[m_pos];
         }
     };
 
 private:
-    const GenericTypes::SecHeader* const m_sections;
+    const typename GenericTypes::SecHeader* const m_sections;
     const unsigned int m_count;
 
 public:
-    Sections(const GenericTypes::SecHeader* sections, unsigned int count)
+    Sections(const typename GenericTypes::SecHeader* const sections, const unsigned int count) noexcept
         : m_sections(sections)
         , m_count(count)
     {
     }
 
-    const GenericTypes::SecHeader* sections() const
+    const typename GenericTypes::SecHeader* sections() const noexcept
     {
         return m_sections;
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         return m_sections != nullptr;
     }
 
-    bool empty() const
+    bool empty() const noexcept
     {
         return !valid() || !m_count;
     }
 
-    unsigned int count() const
+    unsigned int count() const noexcept
     {
         return m_count;
     }
 
-    Iterator begin() const
+    Iterator begin() const noexcept
     {
         return Iterator(*this, 0);
     }
 
-    Iterator end() const
+    Iterator end() const noexcept
     {
         return Iterator(*this, m_count);
     }
 };
+
+
 
 template <typename EntryType>
 class GenericIterator
@@ -674,43 +672,45 @@ private:
 
 public:
     template <typename... Args>
-    GenericIterator(const Args&... args) : m_entry(args...)
+    GenericIterator(const Args&... args) noexcept : m_entry(args...)
     {
     }
 
-    GenericIterator& operator ++ ()
+    GenericIterator& operator ++ () noexcept
     {
         m_entry.step();
         return *this;
     }
 
-    GenericIterator operator ++ (int)
+    GenericIterator operator ++ (int) noexcept
     {
         const auto it = *this;
         ++(*this);
         return it;
     }
 
-    bool operator == (const GenericIterator& it) const
+    bool operator == (const GenericIterator& it) const noexcept
     {
         return m_entry.equals(it.m_entry);
     }
 
-    bool operator != (const GenericIterator& it) const
+    bool operator != (const GenericIterator& it) const noexcept
     {
         return !operator == (it);
     }
 
-    const EntryType& operator * () const
+    const EntryType& operator * () const noexcept
     {
         return m_entry;
     }
 
-    const EntryType* operator -> () const
+    const EntryType* operator -> () const noexcept
     {
         return &m_entry;
     }
 };
+
+
 
 class Imports
 {
@@ -727,22 +727,22 @@ public:
         unsigned int m_index;
 
     public:
-        FuncEntry(const LibEntry& lib, unsigned int index) : m_lib(lib), m_index(index)
+        FuncEntry(const LibEntry& lib, const unsigned int index) noexcept : m_lib(lib), m_index(index)
         {
         }
 
-        const LibEntry& lib() const
+        const LibEntry& lib() const noexcept
         {
             return m_lib;
         }
 
-        unsigned int index() const
+        unsigned int index() const noexcept
         {
             return m_index;
         }
 
         template <Arch arch>
-        const typename Types<arch>::Iat* iat() const
+        const typename Types<arch>::Iat* iat() const noexcept
         {
             if ((arch != m_lib.pe().arch()) || (m_index == k_invalid))
             {
@@ -753,7 +753,7 @@ public:
         }
 
         template <Arch arch>
-        const typename Types<arch>::Ilt* ilt() const
+        const typename Types<arch>::Ilt* ilt() const noexcept
         {
             if ((arch != m_lib.pe().arch()) || (m_index == k_invalid))
             {
@@ -763,7 +763,7 @@ public:
             return &m_lib.ilt<arch>()[m_index];
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             if (m_index == k_invalid)
             {
@@ -787,12 +787,12 @@ public:
             }
         }
 
-        bool empty() const
+        bool empty() const noexcept
         {
             return !valid();
         }
 
-        ImportType type() const
+        ImportType type() const noexcept
         {
             if (m_index == k_invalid)
             {
@@ -816,7 +816,7 @@ public:
             }
         }
 
-        const GenericTypes::ImgImportByName* name() const
+        const typename GenericTypes::ImgImportByName* name() const noexcept
         {
             if (type() != ImportType::name)
             {
@@ -828,12 +828,12 @@ public:
             case Arch::native:
             {
                 const Rva rva = ilt<Arch::native>()->name.hintNameRva;
-                return m_lib.pe().byRva<GenericTypes::ImgImportByName>(rva);
+                return m_lib.pe().byRva<typename GenericTypes::ImgImportByName>(rva);
             }
             case Arch::inverse:
             {
                 const Rva rva = ilt<Arch::inverse>()->name.hintNameRva;
-                return m_lib.pe().byRva<GenericTypes::ImgImportByName>(rva);
+                return m_lib.pe().byRva<typename GenericTypes::ImgImportByName>(rva);
             }
             default:
             {
@@ -842,7 +842,7 @@ public:
             }
         }
 
-        unsigned long long address() const
+        unsigned long long address() const noexcept
         {
             if ((m_lib.pe().type() == ImgType::file) && !m_lib.bound())
             {
@@ -866,7 +866,7 @@ public:
             }
         }
 
-        unsigned short ordinal() const
+        unsigned short ordinal() const noexcept
         {
             if (type() != ImportType::ordinal)
             {
@@ -890,7 +890,7 @@ public:
             }
         }
 
-        bool equals(const FuncEntry& entry) const
+        bool equals(const FuncEntry& entry) const noexcept
         {
             if (&m_lib != &entry.m_lib)
             {
@@ -914,7 +914,7 @@ public:
             return index() == entry.index();
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
@@ -929,43 +929,43 @@ public:
     {
     private:
         const Pe& m_pe;
-        const DirImports::Type* m_desc;
+        const typename DirImports::Type* m_desc;
 
     public:
-        LibEntry(const Pe& pe, const DirImports::Type* desc)
+        LibEntry(const Pe& pe, const typename DirImports::Type* const desc) noexcept
             : m_pe(pe)
             , m_desc(desc)
         {
         }
 
-        const Pe& pe() const
+        const Pe& pe() const noexcept
         {
             return m_pe;
         }
 
-        const DirImports::Type* desc() const
+        const typename DirImports::Type* desc() const noexcept
         {
             return m_desc;
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             return m_desc && m_desc->Characteristics;
         }
 
-        bool empty() const
+        bool empty() const noexcept
         {
             return !valid();
         }
 
-        const char* libName() const
+        const char* libName() const noexcept
         {
             return m_pe.byRva<char>(m_desc->Name);
         }
 
         // Import Address Table:
         template <Arch arch>
-        const typename Types<arch>::Iat* iat() const
+        const typename Types<arch>::Iat* iat() const noexcept
         {
             if (arch == m_pe.arch())
             {
@@ -979,7 +979,7 @@ public:
 
         // Import Lookup Table:
         template <Arch arch>
-        const typename Types<arch>::Ilt* ilt() const
+        const typename Types<arch>::Ilt* ilt() const noexcept
         {
             if (arch == m_pe.arch())
             {
@@ -991,12 +991,12 @@ public:
             }
         }
 
-        bool bound() const
+        bool bound() const noexcept
         {
             return desc()->TimeDateStamp != 0;
         }
 
-        bool equals(const LibEntry& entry) const
+        bool equals(const LibEntry& entry) const noexcept
         {
             if (&m_pe != &entry.m_pe)
             {
@@ -1020,7 +1020,7 @@ public:
             return desc() == entry.desc();
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
@@ -1028,7 +1028,7 @@ public:
             }
         }
 
-        FuncIterator begin() const
+        FuncIterator begin() const noexcept
         {
             if (!valid())
             {
@@ -1038,7 +1038,7 @@ public:
             return FuncIterator(*this, 0);
         }
 
-        FuncIterator end() const
+        FuncIterator end() const noexcept
         {
             return FuncIterator(*this, FuncEntry::k_invalid);
         }
@@ -1051,37 +1051,37 @@ private:
     const Pe& m_pe;
 
 public:
-    explicit Imports(const Pe& pe) : m_pe(pe)
+    explicit Imports(const Pe& pe) noexcept : m_pe(pe)
     {
     }
 
-    const Pe& pe() const
+    const Pe& pe() const noexcept
     {
         return m_pe;
     }
 
-    const DirImports::Type* desc() const
+    const typename DirImports::Type* desc() const noexcept
     {
         return m_pe.dir<DirImports>();
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         return desc() != nullptr;
     }
 
-    bool empty() const
+    bool empty() const noexcept
     {
         const auto* const impDesc = desc();
         return !impDesc || !impDesc->FirstThunk;
     }
 
-    LibIterator begin() const
+    LibIterator begin() const noexcept
     {
         return LibIterator(m_pe, desc());
     }
 
-    LibIterator end() const
+    LibIterator end() const noexcept
     {
         return LibIterator(m_pe, nullptr);
     }
@@ -1104,22 +1104,22 @@ public:
         unsigned int m_index;
 
     public:
-        FuncEntry(const LibEntry& lib, unsigned int index) : m_lib(lib), m_index(index)
+        FuncEntry(const LibEntry& lib, const unsigned int index) noexcept : m_lib(lib), m_index(index)
         {
         }
 
-        const LibEntry& lib() const
+        const LibEntry& lib() const noexcept
         {
             return m_lib;
         }
 
-        unsigned int index() const
+        unsigned int index() const noexcept
         {
             return m_index;
         }
 
         template <Arch arch>
-        const typename Types<arch>::Iat* iat() const
+        const typename Types<arch>::Iat* iat() const noexcept
         {
             if ((arch != m_lib.pe().arch()) || (m_index == k_invalid))
             {
@@ -1130,7 +1130,7 @@ public:
         }
 
         template <Arch arch>
-        const typename Types<arch>::ImportNameTable* nameEntry() const
+        const typename Types<arch>::ImportNameTable* nameEntry() const noexcept
         {
             if ((arch != m_lib.pe().arch()) || (m_index == k_invalid))
             {
@@ -1140,7 +1140,7 @@ public:
             return &m_lib.names<arch>()[m_index];
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             if (m_index == k_invalid)
             {
@@ -1164,12 +1164,12 @@ public:
             }
         }
 
-        bool empty() const
+        bool empty() const noexcept
         {
             return !valid();
         }
 
-        ImportType type() const
+        ImportType type() const noexcept
         {
             if (m_index == k_invalid)
             {
@@ -1193,7 +1193,7 @@ public:
             }
         }
 
-        const GenericTypes::ImgImportByName* name() const
+        const typename GenericTypes::ImgImportByName* name() const noexcept
         {
             if (type() != ImportType::name)
             {
@@ -1205,12 +1205,12 @@ public:
             case Arch::native:
             {
                 const Rva rva = nameEntry<Arch::native>()->name.hintNameRva;
-                return m_lib.pe().byRva<GenericTypes::ImgImportByName>(rva);
+                return m_lib.pe().byRva<typename GenericTypes::ImgImportByName>(rva);
             }
             case Arch::inverse:
             {
                 const Rva rva = nameEntry<Arch::inverse>()->name.hintNameRva;
-                return m_lib.pe().byRva<GenericTypes::ImgImportByName>(rva);
+                return m_lib.pe().byRva<typename GenericTypes::ImgImportByName>(rva);
             }
             default:
             {
@@ -1219,7 +1219,7 @@ public:
             }
         }
 
-        unsigned long long address() const
+        unsigned long long address() const noexcept
         {
             switch (m_lib.pe().arch())
             {
@@ -1238,7 +1238,7 @@ public:
             }
         }
 
-        unsigned int ordinal() const
+        unsigned int ordinal() const noexcept
         {
             if (type() != ImportType::ordinal)
             {
@@ -1262,7 +1262,7 @@ public:
             }
         }
 
-        bool equals(const FuncEntry& entry) const
+        bool equals(const FuncEntry& entry) const noexcept
         {
             if (&m_lib != &entry.m_lib)
             {
@@ -1286,7 +1286,7 @@ public:
             return index() == entry.index();
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
@@ -1301,43 +1301,43 @@ public:
     {
     private:
         const Pe& m_pe;
-        const DirDelayedImports::Type* m_desc;
+        const typename DirDelayedImports::Type* m_desc;
 
     public:
-        LibEntry(const Pe& pe, const DirDelayedImports::Type* desc)
+        LibEntry(const Pe& pe, const typename DirDelayedImports::Type* const desc) noexcept
             : m_pe(pe)
             , m_desc(desc)
         {
         }
 
-        const Pe& pe() const
+        const Pe& pe() const noexcept
         {
             return m_pe;
         }
 
-        const DirDelayedImports::Type* desc() const
+        const typename DirDelayedImports::Type* desc() const noexcept
         {
             return m_desc;
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             return m_desc && m_desc->DllNameRVA;
         }
 
-        bool empty() const
+        bool empty() const noexcept
         {
             return !valid();
         }
 
-        const char* libName() const
+        const char* libName() const noexcept
         {
             return m_pe.byRva<char>(m_desc->DllNameRVA);
         }
 
         // Import Address Table:
         template <Arch arch>
-        const typename Types<arch>::Iat* iat() const
+        const typename Types<arch>::Iat* iat() const noexcept
         {
             if (arch == m_pe.arch())
             {
@@ -1351,7 +1351,7 @@ public:
 
         // Import Name Table:
         template <Arch arch>
-        const typename Types<arch>::ImportNameTable* names() const
+        const typename Types<arch>::ImportNameTable* names() const noexcept
         {
             if (arch == m_pe.arch())
             {
@@ -1363,7 +1363,7 @@ public:
             }
         }
 
-        bool equals(const LibEntry& entry) const
+        bool equals(const LibEntry& entry) const noexcept
         {
             if (&m_pe != &entry.m_pe)
             {
@@ -1387,7 +1387,7 @@ public:
             return desc() == entry.desc();
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
@@ -1395,7 +1395,7 @@ public:
             }
         }
 
-        FuncIterator begin() const
+        FuncIterator begin() const noexcept
         {
             if (!valid())
             {
@@ -1405,7 +1405,7 @@ public:
             return FuncIterator(*this, 0);
         }
 
-        FuncIterator end() const
+        FuncIterator end() const noexcept
         {
             return FuncIterator(*this, FuncEntry::k_invalid);
         }
@@ -1417,37 +1417,37 @@ private:
     const Pe& m_pe;
 
 public:
-    explicit DelayedImports(const Pe& pe) : m_pe(pe)
+    explicit DelayedImports(const Pe& pe) noexcept : m_pe(pe)
     {
     }
 
-    const Pe& pe() const
+    const Pe& pe() const noexcept
     {
         return m_pe;
     }
 
-    const DirDelayedImports::Type* desc() const
+    const typename DirDelayedImports::Type* desc() const noexcept
     {
         return m_pe.dir<DirDelayedImports>();
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         return desc() != nullptr;
     }
 
-    bool empty() const
+    bool empty() const noexcept
     {
         const auto* const impDesc = desc();
         return !impDesc || !impDesc->DllNameRVA;
     }
 
-    LibIterator begin() const
+    LibIterator begin() const noexcept
     {
         return LibIterator(m_pe, desc());
     }
 
-    LibIterator end() const
+    LibIterator end() const noexcept
     {
         return LibIterator(m_pe, nullptr);
     }
@@ -1470,21 +1470,21 @@ public:
         unsigned int m_index;
 
     public:
-        ForwarderEntry(const LibEntry& lib, unsigned int index) : m_lib(lib), m_index(index)
+        ForwarderEntry(const LibEntry& lib, const unsigned int index) noexcept : m_lib(lib), m_index(index)
         {
         }
 
-        const LibEntry& lib() const
+        const LibEntry& lib() const noexcept
         {
             return m_lib;
         }
 
-        unsigned int index() const
+        unsigned int index() const noexcept
         {
             return m_index;
         }
 
-        const GenericTypes::BoundForwarderRef* desc() const
+        const typename GenericTypes::BoundForwarderRef* desc() const noexcept
         {
             if (m_index == k_invalid)
             {
@@ -1494,7 +1494,7 @@ public:
             return &m_lib.forwarders()[m_index];
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             if (m_index == k_invalid)
             {
@@ -1504,17 +1504,17 @@ public:
             return desc()->OffsetModuleName != 0;
         }
 
-        const char* libName() const
+        const char* libName() const noexcept
         {
             return reinterpret_cast<const char*>(m_lib.dirBase()) + desc()->OffsetModuleName;
         }
 
-        unsigned int timestamp() const
+        unsigned int timestamp() const noexcept
         {
             return desc()->TimeDateStamp;
         }
 
-        bool equals(const ForwarderEntry& entry) const
+        bool equals(const ForwarderEntry& entry) const noexcept
         {
             if (&m_lib != &entry.m_lib)
             {
@@ -1538,7 +1538,7 @@ public:
             return index() == entry.index();
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
@@ -1554,43 +1554,43 @@ public:
     {
     private:
         const Pe& m_pe;
-        const DirBoundImports::Type* const m_dirBase;
-        const DirBoundImports::Type* m_desc;
+        const typename DirBoundImports::Type* const m_dirBase;
+        const typename DirBoundImports::Type* m_desc;
 
     public:
-        LibEntry(const Pe& pe, const DirBoundImports::Type* desc)
+        LibEntry(const Pe& pe, const typename DirBoundImports::Type* const desc) noexcept
             : m_pe(pe)
             , m_dirBase(desc)
             , m_desc(desc)
         {
         }
 
-        const Pe& pe() const
+        const Pe& pe() const noexcept
         {
             return m_pe;
         }
 
-        const DirBoundImports::Type* dirBase() const
+        const typename DirBoundImports::Type* dirBase() const noexcept
         {
             return m_dirBase;
         }
 
-        const DirBoundImports::Type* desc() const
+        const typename DirBoundImports::Type* desc() const noexcept
         {
             return m_desc;
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             return m_desc && m_desc->OffsetModuleName;
         }
 
-        bool empty() const
+        bool empty() const noexcept
         {
             return !valid() || !forwardersCount();
         }
 
-        const char* libName() const
+        const char* libName() const noexcept
         {
             const auto offset = desc()->OffsetModuleName;
             if (!offset)
@@ -1601,22 +1601,22 @@ public:
             return reinterpret_cast<const char*>(m_dirBase) + offset;
         }
 
-        unsigned int forwardersCount() const
+        unsigned int forwardersCount() const noexcept
         {
             return desc()->NumberOfModuleForwarderRefs;
         }
 
-        const GenericTypes::BoundForwarderRef* forwarders() const
+        const typename GenericTypes::BoundForwarderRef* forwarders() const noexcept
         {
             if (empty())
             {
                 return nullptr;
             }
 
-            return reinterpret_cast<const GenericTypes::BoundForwarderRef*>(desc() + 1);
+            return reinterpret_cast<const typename GenericTypes::BoundForwarderRef*>(desc() + 1);
         }
 
-        bool equals(const LibEntry& entry) const
+        bool equals(const LibEntry& entry) const noexcept
         {
             if (&m_pe != &entry.m_pe)
             {
@@ -1640,15 +1640,15 @@ public:
             return desc() == entry.desc();
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
-                m_desc = reinterpret_cast<const DirBoundImports::Type*>(reinterpret_cast<const unsigned char*>(forwarders()) + forwardersCount() * sizeof(GenericTypes::BoundForwarderRef));
+                m_desc = reinterpret_cast<const typename DirBoundImports::Type*>(reinterpret_cast<const unsigned char*>(forwarders()) + forwardersCount() * sizeof(typename GenericTypes::BoundForwarderRef));
             }
         }
 
-        ForwarderIterator begin() const
+        ForwarderIterator begin() const noexcept
         {
             if (empty())
             {
@@ -1658,7 +1658,7 @@ public:
             return ForwarderIterator(*this, 0);
         }
 
-        ForwarderIterator end() const
+        ForwarderIterator end() const noexcept
         {
             return ForwarderIterator(*this, ForwarderEntry::k_invalid);
         }
@@ -1670,37 +1670,37 @@ private:
     const Pe& m_pe;
 
 public:
-    explicit BoundImports(const Pe& pe) : m_pe(pe)
+    explicit BoundImports(const Pe& pe) noexcept : m_pe(pe)
     {
     }
 
-    const Pe& pe() const
+    const Pe& pe() const noexcept
     {
         return m_pe;
     }
 
-    const DirBoundImports::Type* desc() const
+    const typename DirBoundImports::Type* desc() const noexcept
     {
         return m_pe.dir<DirBoundImports>();
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         return desc() != nullptr;
     }
 
-    bool empty() const
+    bool empty() const noexcept
     {
         const auto* const impDesc = desc();
         return !impDesc || !impDesc->OffsetModuleName;
     }
 
-    LibIterator begin() const
+    LibIterator begin() const noexcept
     {
         return LibIterator(m_pe, desc());
     }
 
-    LibIterator end() const
+    LibIterator end() const noexcept
     {
         return LibIterator(m_pe, nullptr);
     }
@@ -1713,38 +1713,35 @@ class Exports
 public:
     class FuncEntry
     {
-    public:
-        static constexpr auto k_invalid = 0xFFFFFFFFu;
-
     private:
         const Exports& m_exports;
-        const GenericTypes::Eat* const m_eat;
+        const typename GenericTypes::Eat* const m_eat;
         const Rva* const m_names;
         const Ordinal* const m_ordinals;
         unsigned int m_index;
 
     public:
-        FuncEntry(const Exports& exports, unsigned int index)
+        FuncEntry(const Exports& exports, const unsigned int index) noexcept
             : m_exports(exports)
-            , m_eat((index != k_invalid) ? exports.pe().byRva<GenericTypes::Eat>(exports.desc()->AddressOfFunctions) : nullptr)
-            , m_names((index != k_invalid) ? exports.pe().byRva<Rva>(exports.desc()->AddressOfNames) : nullptr)
-            , m_ordinals((index != k_invalid) ? exports.pe().byRva<Ordinal>(exports.desc()->AddressOfNameOrdinals) : nullptr)
+            , m_eat(exports.pe().byRva<typename GenericTypes::Eat>(exports.desc()->AddressOfFunctions))
+            , m_names(exports.pe().byRva<Rva>(exports.desc()->AddressOfNames))
+            , m_ordinals(exports.pe().byRva<Ordinal>(exports.desc()->AddressOfNameOrdinals))
             , m_index(index)
         {
         }
 
-        unsigned int index() const
+        unsigned int index() const noexcept
         {
             return m_index;
         }
 
-        const GenericTypes::Eat* eat() const
+        const typename GenericTypes::Eat* eat() const noexcept
         {
             const auto ord = m_ordinals[m_index];
             return &m_eat[ord];
         }
 
-        ExportType type() const
+        ExportType type() const noexcept
         {
             if (!valid())
             {
@@ -1756,17 +1753,17 @@ public:
                 : ExportType::forwarder;
         }
 
-        const char* name() const
+        const char* name() const noexcept
         {
             return m_exports.pe().byRva<char>(m_names[m_index]);
         }
 
-        unsigned int ordinal() const
+        unsigned int ordinal() const noexcept
         {
             return m_ordinals[m_index];
         }
 
-        const void* address() const
+        const void* address() const noexcept
         {
             if (type() != ExportType::exact)
             {
@@ -1776,7 +1773,7 @@ public:
             return m_exports.pe().byRva<void>(eat()->address);
         }
 
-        const char* forwarder() const
+        const char* forwarder() const noexcept
         {
             if (type() != ExportType::forwarder)
             {
@@ -1786,12 +1783,12 @@ public:
             return m_exports.pe().byRva<char>(eat()->forwarderString);
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
-            return m_index < m_exports.count();
+            return ordinal() < m_exports.count();
         }
 
-        bool equals(const FuncEntry& entry) const
+        bool equals(const FuncEntry& entry) const noexcept
         {
             if (&m_exports != &entry.m_exports)
             {
@@ -1828,69 +1825,69 @@ public:
 
 private:
     const Pe& m_pe;
-    const GenericTypes::ImgDataDir* const m_dir;
-    const DirExports::Type* const m_desc;
+    const typename GenericTypes::ImgDataDir* const m_dir;
+    const typename DirExports::Type* const m_desc;
 
 public:
-    explicit Exports(const Pe& pe)
+    explicit Exports(const Pe& pe) noexcept
         : m_pe(pe)
         , m_dir(pe.dir(DirExports::k_id))
-        , m_desc(m_dir ? pe.byRva<DirExports::Type>(m_dir->VirtualAddress) : nullptr)
+        , m_desc(m_dir ? pe.byRva<typename DirExports::Type>(m_dir->VirtualAddress) : nullptr)
     {
     }
 
-    const Pe& pe() const
+    const Pe& pe() const noexcept
     {
         return m_pe;
     }
 
-    const Rva dirRva() const
+    const Rva dirRva() const noexcept
     {
         return m_dir->VirtualAddress;
     }
 
-    const unsigned int dirSize() const
+    unsigned int dirSize() const noexcept
     {
         return m_dir->Size;
     }
 
-    bool contains(Rva rva) const
+    bool contains(Rva rva) const noexcept
     {
         return (rva >= dirRva()) && (rva < (dirRva() + dirSize()));
     }
 
-    const DirExports::Type* desc() const
+    const typename DirExports::Type* desc() const noexcept
     {
         return m_desc;
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         return desc() != nullptr;
     }
 
-    bool empty() const
+    bool empty() const noexcept
     {
         return count() == 0;
     }
 
-    unsigned int count() const
+    unsigned int count() const noexcept
     {
         return valid() ? desc()->NumberOfFunctions : 0;
     }
 
-    const char* libName() const
+    const char* libName() const noexcept
     {
         const Rva rva = desc()->Name;
         return m_pe.byRva<char>(rva);
     }
 
-    unsigned int base() const
+    unsigned int base() const noexcept
     {
         return desc()->Base;
     }
 
-    FuncIterator begin() const
+    FuncIterator begin() const noexcept
     {
         if (!valid())
         {
@@ -1900,11 +1897,12 @@ public:
         return FuncIterator(*this, 0);
     }
 
-    FuncIterator end() const
+    FuncIterator end() const noexcept
     {
-        return FuncIterator(*this, FuncEntry::k_invalid);
+        return FuncIterator(*this, count());
     }
 };
+
 
 
 class Relocs
@@ -1922,32 +1920,32 @@ public:
         unsigned int m_index;
 
     public:
-        RelocEntry(const PageEntry& page, unsigned int index) : m_page(page), m_index(index)
+        RelocEntry(const PageEntry& page, const unsigned int index) noexcept : m_page(page), m_index(index)
         {
         }
 
-        const PageEntry& page() const
+        const PageEntry& page() const noexcept
         {
             return m_page;
         }
 
-        const Reloc* reloc() const
+        const Reloc* reloc() const noexcept
         {
             const auto* const relocs = reinterpret_cast<const Reloc*>(m_page.desc() + 1);
             return &relocs[m_index];
         }
 
-        const void* addr() const
+        const void* addr() const noexcept
         {
             return static_cast<const unsigned char*>(page().page()) + reloc()->offsetInPage;
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             return m_index < m_page.count();
         }
 
-        bool equals(const RelocEntry& entry) const
+        bool equals(const RelocEntry& entry) const noexcept
         {
             if (&m_page != &entry.m_page)
             {
@@ -1971,7 +1969,7 @@ public:
             return m_index == entry.m_index;
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
@@ -1986,36 +1984,36 @@ public:
     {
     private:
         const Relocs& m_relocs;
-        const DirRelocs::Type* m_entry;
+        const typename DirRelocs::Type* m_entry;
 
     public:
-        PageEntry(const Relocs& relocs, const DirRelocs::Type* entry)
+        PageEntry(const Relocs& relocs, const typename DirRelocs::Type* entry) noexcept
             : m_relocs(relocs)
             , m_entry(entry)
         {
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             return m_entry && m_entry->VirtualAddress && m_entry->SizeOfBlock;
         }
 
-        const DirRelocs::Type* desc() const
+        const typename DirRelocs::Type* desc() const noexcept
         {
             return m_entry;
         }
 
-        const void* page() const
+        const void* page() const noexcept
         {
             return m_relocs.pe().byRva<void>(m_entry->VirtualAddress);
         }
 
-        unsigned int count() const
+        unsigned int count() const noexcept
         {
             return (m_entry->SizeOfBlock - sizeof(*m_entry)) / sizeof(Reloc); // Not including trailing empty element
         }
 
-        bool equals(const PageEntry& entry) const
+        bool equals(const PageEntry& entry) const noexcept
         {
             if (&m_relocs != &entry.m_relocs)
             {
@@ -2039,17 +2037,17 @@ public:
             return desc() == entry.desc();
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
-                m_entry = reinterpret_cast<const DirRelocs::Type*>(
+                m_entry = reinterpret_cast<const typename DirRelocs::Type*>(
                     reinterpret_cast<const unsigned char*>(m_entry) + m_entry->SizeOfBlock
                 );
             }
         }
 
-        RelocIterator begin() const
+        RelocIterator begin() const noexcept
         {
             if (!valid())
             {
@@ -2059,7 +2057,7 @@ public:
             return RelocIterator(*this, 0);
         }
 
-        RelocIterator end() const
+        RelocIterator end() const noexcept
         {
             return RelocIterator(*this, RelocEntry::k_invalid);
         }
@@ -2069,29 +2067,29 @@ public:
 
 private:
     const Pe& m_pe;
-    const DirRelocs::Type* const m_table;
+    const typename DirRelocs::Type* const m_table;
 
 public:
-    explicit Relocs(const Pe& pe) : m_pe(pe), m_table(pe.dir<DirRelocs>())
+    explicit Relocs(const Pe& pe) noexcept : m_pe(pe), m_table(pe.dir<DirRelocs>())
     {
     }
 
-    const Pe& pe() const
+    const Pe& pe() const noexcept
     {
         return m_pe;
     }
 
-    const DirRelocs::Type* table() const
+    const DirRelocs::Type* table() const noexcept
     {
         return m_table;
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         return m_pe.valid() && table();
     }
 
-    PageIterator begin() const
+    PageIterator begin() const noexcept
     {
         if (!valid())
         {
@@ -2101,11 +2099,12 @@ public:
         return PageIterator(*this, table());
     }
 
-    PageIterator end() const
+    PageIterator end() const noexcept
     {
         return PageIterator(*this, nullptr);
     }
 };
+
 
 
 class Exceptions
@@ -2121,13 +2120,13 @@ public:
         unsigned int m_index;
 
     public:
-        explicit RuntimeFunctionEntry(const Exceptions& exceptions, unsigned int index)
+        explicit RuntimeFunctionEntry(const Exceptions& exceptions, const unsigned int index) noexcept
             : m_exceptions(exceptions)
             , m_index(index)
         {
         }
 
-        const DirExceptions::Type* runtimeFunction() const
+        const typename DirExceptions::Type* runtimeFunction() const noexcept
         {
             if (!valid())
             {
@@ -2137,12 +2136,12 @@ public:
             return &m_exceptions.runtimeFunctions()[m_index];
         }
 
-        bool valid() const
+        bool valid() const noexcept
         {
             return (m_index != k_invalid) && (m_exceptions.runtimeFunctions()[m_index].BeginAddress != 0);
         }
 
-        bool equals(const RuntimeFunctionEntry& entry) const
+        bool equals(const RuntimeFunctionEntry& entry) const noexcept
         {
             if (&m_exceptions != &entry.m_exceptions)
             {
@@ -2166,7 +2165,7 @@ public:
             return runtimeFunction() == entry.runtimeFunction();
         }
 
-        void step()
+        void step() noexcept
         {
             if (valid())
             {
@@ -2179,26 +2178,26 @@ public:
 
 private:
     const Pe& m_pe;
-    const DirExceptions::Type* const m_runtimeFunctions;
+    const typename DirExceptions::Type* const m_runtimeFunctions;
 
 public:
-    explicit Exceptions(const Pe& pe)
+    explicit Exceptions(const Pe& pe) noexcept
         : m_pe(pe)
         , m_runtimeFunctions(pe.valid() ? pe.dir<DirExceptions>() : nullptr)
     {
     }
 
-    const DirExceptions::Type* runtimeFunctions() const
+    const typename DirExceptions::Type* runtimeFunctions() const noexcept
     {
         return m_runtimeFunctions;
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
         return m_runtimeFunctions != nullptr;
     }
 
-    RuntimeFunctionIterator begin() const
+    RuntimeFunctionIterator begin() const noexcept
     {
         if (!valid())
         {
@@ -2208,14 +2207,15 @@ public:
         return RuntimeFunctionIterator(*this, 0);
     }
 
-    RuntimeFunctionIterator end() const
+    RuntimeFunctionIterator end() const noexcept
     {
         return RuntimeFunctionIterator(*this, RuntimeFunctionEntry::k_invalid);
     }
 };
 
 
-inline Sections Pe::sections() const
+
+inline Sections Pe::sections() const noexcept
 {
     if (m_arch == Arch::native)
     {
@@ -2237,34 +2237,36 @@ inline Sections Pe::sections() const
     }
 }
 
-inline Imports Pe::imports() const
+inline Imports Pe::imports() const noexcept
 {
     return Imports(*this);
 }
 
-inline DelayedImports Pe::delayedImports() const
+inline DelayedImports Pe::delayedImports() const noexcept
 {
     return DelayedImports(*this);
 }
 
-inline BoundImports Pe::boundImports() const
+inline BoundImports Pe::boundImports() const noexcept
 {
     return BoundImports(*this);
 }
 
-inline Exports Pe::exports() const
+inline Exports Pe::exports() const noexcept
 {
     return Exports(*this);
 }
 
-inline Relocs Pe::relocs() const
+inline Relocs Pe::relocs() const noexcept
 {
     return Relocs(*this);
 }
 
-inline Exceptions Pe::exceptions() const
+inline Exceptions Pe::exceptions() const noexcept
 {
     return Exceptions(*this);
 }
+
+
 
 } // namespace Pe
