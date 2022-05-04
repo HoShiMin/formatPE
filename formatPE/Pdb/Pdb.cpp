@@ -1,6 +1,3 @@
-// This is an open source non-commercial project. Dear PVS-Studio, please check it.
-// PVS-Studio Static Code Analyzer for C, C++, C#, and Java: http://www.viva64.com
-
 #include "Pdb.h"
 
 #define _NO_CVCONST_H
@@ -8,10 +5,15 @@
 #include <DbgHelp.h>
 #pragma comment(lib, "dbghelp.lib")
 
+#include <sstream>
+#include <iomanip>
+
 namespace Pdb
 {
 
-const wchar_t* Prov::k_symPath = L"srv*C:\\Symbols*http://msdl.microsoft.com/download/symbols";
+const wchar_t* Prov::k_microsoftSymbolServer = L"http://msdl.microsoft.com/download/symbols";
+const wchar_t* Prov::k_microsoftSymbolServerSecure = L"https://msdl.microsoft.com/download/symbols";
+const wchar_t* Prov::k_defaultSymPath = L"srv*C:\\Symbols*http://msdl.microsoft.com/download/symbols";
 const uint32_t Prov::k_defaultOptions = SYMOPT_UNDNAME | SYMOPT_DEBUG | SYMOPT_LOAD_ANYTHING;
 
 size_t Prov::s_initCount = 0;
@@ -24,6 +26,184 @@ InstUid Prov::uid()
     }
     return &s_initCount;
 }
+
+
+
+
+const wchar_t* PdbInfo::extractFileName(const wchar_t* const path, const size_t length) noexcept
+{
+    if (!length)
+    {
+        return path;
+    }
+
+    const wchar_t* name = &path[length - 1];
+    while ((name != path) && (*name != L'\\') && (*name != L'/'))
+    {
+        --name;
+    }
+
+    return name;
+}
+
+PdbInfo PdbInfo::get(const wchar_t* const path) noexcept(false)
+{
+    SYMSRV_INDEX_INFOW info{};
+    info.sizeofstruct = sizeof(info);
+    const bool status = !!SymSrvGetFileIndexInfoW(path, &info, 0);
+    if (!status)
+    {
+        const auto lastError = GetLastError();
+        throw DbgHelpFailure(__FUNCTIONW__ L": Unable to get a file index info.", lastError);
+    }
+
+    PdbInfo pdbInfo;
+    pdbInfo.m_info.timestamp = info.timestamp;
+    pdbInfo.m_info.imageFileSize = info.size;
+    pdbInfo.m_info.age = info.age;
+    pdbInfo.m_info.guid = info.guid;
+    wcscpy_s(pdbInfo.m_info.file, info.file);
+    wcscpy_s(pdbInfo.m_info.dbgFile, info.dbgfile);
+    wcscpy_s(pdbInfo.m_info.pdbFile, info.pdbfile);
+    pdbInfo.m_info.stripped = info.stripped;
+    pdbInfo.m_type = ((info.sig == info.guid.Data1) && (info.guid.Data2 == 0) && (info.guid.Data3 == 0) && (*reinterpret_cast<const uint64_t*>(info.guid.Data4) == 0))
+        ? Type::pdb20
+        : Type::pdb70;
+
+    return pdbInfo;
+}
+
+PdbInfo::Type PdbInfo::type() const noexcept
+{
+    return m_type;
+}
+
+const PdbInfo::IndexInfo& PdbInfo::info() const noexcept
+{
+    return m_info;
+}
+
+std::wstring PdbInfo::makeFullPath(const wchar_t delimiter) const
+{
+    const size_t pathLength = wcslen(m_info.pdbFile);
+    if (!pathLength)
+    {
+        return {};
+    }
+
+    const wchar_t* const pdbPath = m_info.pdbFile;
+    const wchar_t* const pdbName = extractFileName(pdbPath, pathLength);
+    const unsigned int age = m_info.age;
+
+    switch (m_type)
+    {
+    case Type::pdb70:
+    {
+        const auto& guid = m_info.guid;
+
+        std::wstringstream stream;
+        stream << std::uppercase << std::hex << std::setfill(L'0')
+            << pdbName
+            << delimiter
+            << std::setw(8) << guid.Data1
+            << std::setw(4) << guid.Data2
+            << std::setw(4) << guid.Data3
+            << std::setw(2) << guid.Data4[0]
+            << std::setw(2) << guid.Data4[1]
+            << std::setw(2) << guid.Data4[2]
+            << std::setw(2) << guid.Data4[3]
+            << std::setw(2) << guid.Data4[4]
+            << std::setw(2) << guid.Data4[5]
+            << std::setw(2) << guid.Data4[6]
+            << std::setw(2) << guid.Data4[7]
+            << std::setw(1) << age
+            << delimiter
+            << pdbPath;
+
+        return stream.str();
+    }
+    case Type::pdb20:
+    {
+        const auto sig = m_info.signature;
+
+        std::wstringstream stream;
+        stream << std::uppercase << std::hex << std::setfill(L'0')
+            << pdbName
+            << delimiter
+            << std::setw(8) << sig
+            << std::setw(1) << age
+            << delimiter
+            << pdbPath;
+
+        return stream.str();
+    }
+    default:
+    {
+        break;
+    }
+    }
+
+    return {};
+}
+
+std::wstring PdbInfo::pdbSig() const
+{
+    const unsigned int age = m_info.age;
+
+    switch (m_type)
+    {
+    case Type::pdb70:
+    {
+        const auto& guid = m_info.guid;
+
+        std::wstringstream stream;
+        stream << std::uppercase << std::hex << std::setfill(L'0')
+            << std::setw(8) << guid.Data1
+            << std::setw(4) << guid.Data2
+            << std::setw(4) << guid.Data3
+            << std::setw(2) << guid.Data4[0]
+            << std::setw(2) << guid.Data4[1]
+            << std::setw(2) << guid.Data4[2]
+            << std::setw(2) << guid.Data4[3]
+            << std::setw(2) << guid.Data4[4]
+            << std::setw(2) << guid.Data4[5]
+            << std::setw(2) << guid.Data4[6]
+            << std::setw(2) << guid.Data4[7]
+            << std::setw(1) << age;
+
+        return stream.str();
+    }
+    case Type::pdb20:
+    {
+        const auto sig = m_info.signature;
+
+        std::wstringstream stream;
+        stream << std::uppercase << std::hex << std::setfill(L'0')
+            << std::setw(8) << sig
+            << std::setw(1) << age;
+
+        return stream.str();
+    }
+    default:
+    {
+        break;
+    }
+    }
+
+    return {};
+}
+
+std::wstring PdbInfo::pdbPath() const
+{
+    return makeFullPath('\\');
+}
+
+std::wstring PdbInfo::pdbUrl() const
+{
+    return makeFullPath('/');
+}
+
+
 
 Prov::Prov() noexcept(false) : Prov(k_symPath)
 {
@@ -96,6 +276,11 @@ void Prov::setSymPath(const wchar_t* symPath) noexcept(false)
         const auto lastError = GetLastError();
         throw DbgHelpFailure(__FUNCTIONW__ L": Unable to set a symbol path: 'SymSetSearchPathW' failure.", lastError);
     }
+}
+
+PdbInfo Prov::getPdbInfo(const wchar_t* const filePath) noexcept(false)
+{
+    return PdbInfo::get(filePath);
 }
 
 
@@ -627,7 +812,8 @@ Sym Mod::find(const wchar_t* name) const noexcept(false)
         {
             throw DbgHelpFailure(
                 __FUNCTIONW__ L": Unable to get type from name: 'SymGetTypeFromNameW' failure. "
-                "Ensure that 'symsrv.dll' and 'dbghelp.dll' are present in folder of this program.",
+                "Ensure that 'symsrv.dll' and 'dbghelp.dll' are present in the folder of this program or "
+                "that symbols are present in the symbols folder.",
                 lastError
             );
         }

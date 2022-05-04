@@ -20,7 +20,7 @@ private:
     const std::wstring m_reason;
 
 public:
-    explicit Exception(const std::wstring_view reason) : m_reason(reason)
+    explicit Exception(const std::wstring& reason) : m_reason(reason)
     {
     }
 
@@ -44,7 +44,7 @@ private:
     WinError m_error;
 
 public:
-    explicit DbgHelpFailure(const std::wstring_view reason, WinError error)
+    explicit DbgHelpFailure(const std::wstring& reason, WinError error)
         : Exception(reason)
         , m_error(error)
     {
@@ -62,7 +62,7 @@ private:
     const std::wstring m_sym;
 
 public:
-    SymNotFound(const std::wstring_view reason, const std::wstring_view sym)
+    SymNotFound(const std::wstring& reason, const std::wstring& sym)
         : Exception(reason)
         , m_sym(sym)
     {
@@ -77,9 +77,70 @@ public:
 class BadCast : public Exception
 {
 public:
-    explicit BadCast(const std::wstring_view reason) : Exception(reason)
+    explicit BadCast(const std::wstring& reason) : Exception(reason)
     {
     }
+};
+
+
+
+class Prov;
+
+class PdbInfo
+{
+    friend Prov;
+
+public:
+    enum class Type
+    {
+        unknown,
+        pdb20,
+        pdb70
+    };
+
+    struct IndexInfo
+    {
+        unsigned int timestamp;
+        unsigned int imageFileSize;
+        unsigned int age;
+        union
+        {
+            unsigned int signature;
+            GUID guid;
+        };
+        wchar_t file[MAX_PATH + 1];
+        wchar_t dbgFile[MAX_PATH + 1];
+        wchar_t pdbFile[MAX_PATH + 1];
+        bool stripped;
+    };
+
+private:
+    static const wchar_t* extractFileName(const wchar_t* path, size_t length) noexcept;
+
+private:
+    IndexInfo m_info{};
+    Type m_type{ Type::unknown };
+
+private:
+    PdbInfo() = default;
+    std::wstring makeFullPath(wchar_t delimiter) const;
+
+private:
+    static PdbInfo get(const wchar_t* path) noexcept(false);
+
+public:
+    PdbInfo(const PdbInfo&) = default;
+    PdbInfo(PdbInfo&&) = default;
+    PdbInfo& operator = (const PdbInfo&) = default;
+    PdbInfo& operator = (PdbInfo&&) = default;
+
+    Type type() const noexcept;
+    const IndexInfo& info() const noexcept;
+
+    std::wstring pdbSig() const; // XXXX..XXX
+
+    std::wstring pdbPath() const; // file.pdb\XXXX..XXX\path\to\file.pdb
+    std::wstring pdbUrl() const;  // file.pdb/XXXX..XXX/path/to/file.pdb
 };
 
 
@@ -87,7 +148,9 @@ public:
 class Prov
 {
 public:
-    static const wchar_t* k_symPath;
+    static const wchar_t* k_microsoftSymbolServer;
+    static const wchar_t* k_microsoftSymbolServerSecure;
+    static const wchar_t* k_defaultSymPath;
     static const uint32_t k_defaultOptions;
 
 private:
@@ -110,6 +173,8 @@ public:
 
     std::wstring getSymPath() const noexcept(false);
     void setSymPath(const wchar_t* symPath) noexcept(false);
+
+    PdbInfo getPdbInfo(const wchar_t* filePath) noexcept(false);
 };
 
 struct Variant
@@ -185,24 +250,8 @@ struct Variant
             unsigned short ptr : 1;
             unsigned short reserved : 1;
         } fields;
-
-        template <Type type>
-        static constexpr TypeFields make()
-        {
-            constexpr TypeFields fields{};
-            fields.raw = static_cast<unsigned short>(type);
-            return fields;
-        }
-
-        template <Type type, TypeSpec... specs>
-        static constexpr TypeFields make()
-        {
-            constexpr TypeFields fields{};
-            fields.raw = static_cast<unsigned short>(type) | (static_cast<unsigned short>(specs) | ...);
-            return fields;
-        }
     };
-    static_assert(sizeof(TypeFields) == sizeof(unsigned short));
+    static_assert(sizeof(TypeFields) == sizeof(unsigned short), "Invalid size of TypeFields");
 
     template <Type type>
     struct ValueType;
@@ -339,7 +388,7 @@ struct Variant
             void* __ptr64 ptr64;
         } views;
     };
-    static_assert(sizeof(Layout) == (2 * sizeof(void*) + sizeof(unsigned long long)));
+    static_assert(sizeof(Layout) == (2 * sizeof(void*) + sizeof(unsigned long long)), "Invalid size of Layout");
 
     unsigned char buf[sizeof(Layout)]{};
 
@@ -374,7 +423,7 @@ struct Variant
     {
         const auto variantType = layout()->type;
 
-        if constexpr (spec == TypeSpec::ByRef)
+        if /*constexpr*/ (spec == TypeSpec::ByRef)
         {
             if (!variantType.fields.ptr)
             {
@@ -1071,19 +1120,19 @@ public:
             {
             case BaseType::Int:
             {
-                return TypeHolder(BaseType::Int64).name();
+                return TypeHolder<BaseType>(BaseType::Int64).name();
             }
             case BaseType::UInt:
             {
-                return TypeHolder(BaseType::UInt64).name();
+                return TypeHolder<BaseType>(BaseType::UInt64).name();
             }
             case BaseType::Long:
             {
-                return TypeHolder(BaseType::Int64).name();
+                return TypeHolder<BaseType>(BaseType::Int64).name();
             }
             case BaseType::ULong:
             {
-                return TypeHolder(BaseType::UInt64).name();
+                return TypeHolder<BaseType>(BaseType::UInt64).name();
             }
             case BaseType::Float:
             {
@@ -1097,24 +1146,24 @@ public:
             {
             case BaseType::Int:
             {
-                return TypeHolder(BaseType::Int128).name();
+                return TypeHolder<BaseType>(BaseType::Int128).name();
             }
             case BaseType::UInt:
             {
-                return TypeHolder(BaseType::UInt128).name();
+                return TypeHolder<BaseType>(BaseType::UInt128).name();
             }
             case BaseType::Long:
             {
-                return TypeHolder(BaseType::Int128).name();
+                return TypeHolder<BaseType>(BaseType::Int128).name();
             }
             case BaseType::ULong:
             {
-                return TypeHolder(BaseType::UInt128).name();
+                return TypeHolder<BaseType>(BaseType::UInt128).name();
             }
             }
         }
 
-        return TypeHolder(type).name();
+        return TypeHolder<BaseType>(type).name();
     }
 };
 
@@ -1232,7 +1281,7 @@ public:
         uint32_t pos : 31;
         uint32_t present : 1;
     };
-    static_assert(sizeof(Bit) == sizeof(uint32_t));
+    static_assert(sizeof(Bit) == sizeof(uint32_t), "Invalid size of Bit");
 
     Bit bitfield() const noexcept
     {

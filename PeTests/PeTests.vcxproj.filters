@@ -30,6 +30,9 @@
     <ClCompile Include="..\formatPE\Pdb\Pdb.cpp">
       <Filter>formatPE\Pdb</Filter>
     </ClCompile>
+    <ClCompile Include="..\formatPE\Pdb\SymLoader.cpp">
+      <Filter>formatPE\Pdb</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\formatPE\Pdb\Pdb.h">
@@ -37,6 +40,9 @@
     </ClInclude>
     <ClInclude Include="..\formatPE\Pe\Pe.hpp">
       <Filter>formatPE\Pe</Filter>
+    </ClInclude>
+    <ClInclude Include="..\formatPE\Pdb\SymLoader.h">
+      <Filter>formatPE\Pdb</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
