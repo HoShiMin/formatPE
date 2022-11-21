@@ -194,3 +194,23 @@ int main()
     return 0;
 }
 ```
+
+#### Cmake:
+
+```cmake
+# Copy repositories directory to your project directory as a subdirectory. Then:
+
+add_executable("your-project-exe"
+"xxx.cpp" #your project cpps
+"xxx.cpp"
+"xxx.cpp"
+)
+
+add_subdirectory("./formatPE/")
+target_link_libraries("your-project-exe" PRIVATE 
+formatPE::Pe
+formatPE::Pdb
+formatPE::SymLoader
+)
+
+```
