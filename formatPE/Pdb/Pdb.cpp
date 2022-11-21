@@ -205,7 +205,7 @@ std::wstring PdbInfo::pdbUrl() const
 
 
 
-Prov::Prov() noexcept(false) : Prov(k_symPath)
+Prov::Prov() noexcept(false) : Prov(k_defaultSymPath)
 {
 }
 
