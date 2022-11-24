@@ -195,7 +195,7 @@ int main()
 }
 ```
 
-#### Cmake:
+#### Cmake( as subdirectory ):
 
 ```cmake
 # Copy repositories directory to your project directory as a subdirectory. Then:
@@ -213,4 +213,19 @@ formatPE::Pdb
 formatPE::SymLoader
 )
 
+```
+
+
+#### Cmake( for any directory ):
+
+```cmake
+# usage: 
+
+set(formatPE_DIR "<your 'formatPE' directory>")
+find_package(formatPE REQUIRED) 
+target_link_libraries("your-project-exe" PRIVATE 
+formatPE::Pe
+formatPE::Pdb
+formatPE::SymLoader
+)
 ```
