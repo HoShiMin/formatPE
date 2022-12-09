@@ -195,37 +195,29 @@ int main()
 }
 ```
 
-#### Cmake( as subdirectory ):
+### Build with CMake:
 
 ```cmake
-# Copy repositories directory to your project directory as a subdirectory. Then:
-
-add_executable("your-project-exe"
-"xxx.cpp" #your project cpps
-"xxx.cpp"
-"xxx.cpp"
+# Link formatPE as dependency:
+add_subdirectory("./formatPE/")  # As subfolder
+target_link_libraries("TargetName" PRIVATE 
+    formatPE::Pe
+    formatPE::Pdb
+    formatPE::SymLoader
 )
-
-add_subdirectory("./formatPE/")
-target_link_libraries("your-project-exe" PRIVATE 
-formatPE::Pe
-formatPE::Pdb
-formatPE::SymLoader
-)
-
 ```
 
 
-#### Cmake( for any directory ):
-
+Or:
 ```cmake
-# usage: 
+# Use an absolute path:
+set(formatPE_DIR "/path/to/the/formatPE/directory/with/the/CMakeLists.txt/")
 
-set(formatPE_DIR "your 'formatPE' directory")
 find_package(formatPE REQUIRED) 
-target_link_libraries("your-project-exe" PRIVATE 
-formatPE::Pe
-formatPE::Pdb
-formatPE::SymLoader
+
+target_link_libraries("TargetName" PRIVATE 
+    formatPE::Pe
+    formatPE::Pdb
+    formatPE::SymLoader
 )
 ```
