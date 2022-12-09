@@ -189,8 +189,10 @@ struct Types<Arch::x32> : public GenericTypes
         {
             unsigned int ord : 16;
         } ordinal;
-        unsigned int reserved : 31;
-        unsigned int importByOrdinal : 1;
+        struct {
+            unsigned int reserved : 31;
+            unsigned int importByOrdinal : 1;
+        } type;
 
         bool valid() const noexcept
         {
@@ -203,7 +205,7 @@ struct Types<Arch::x32> : public GenericTypes
             {
                 return ImportType::unknown;
             }
-            return importByOrdinal ? ImportType::ordinal : ImportType::name;
+            return type.importByOrdinal ? ImportType::ordinal : ImportType::name;
         }
     };
     static_assert(sizeof(ImportAddressTableEntry) == sizeof(unsigned int), "Invalid size of ImportAddressTableEntry");
@@ -233,8 +235,10 @@ struct Types<Arch::x64> : public GenericTypes
         {
             unsigned long long ord : 16;
         } ordinal;
-        unsigned long long reserved : 63;
-        unsigned long long importByOrdinal : 1;
+        struct {
+            unsigned long long reserved : 63;
+            unsigned long long importByOrdinal : 1;
+        } type;
 
         bool valid() const noexcept
         {
@@ -247,7 +251,7 @@ struct Types<Arch::x64> : public GenericTypes
             {
                 return ImportType::unknown;
             }
-            return importByOrdinal ? ImportType::ordinal : ImportType::name;
+            return type.importByOrdinal ? ImportType::ordinal : ImportType::name;
         }
     };
     static_assert(sizeof(ImportAddressTableEntry) == sizeof(unsigned long long), "Invalid size of ImportAddressTableEntry");
@@ -1938,10 +1942,13 @@ public:
     using CallbackIterator = Iterator<CallbackEntry>;
 
 private:
+    const Pe<arch>& m_pe;
     const typename DirTls<arch>::Type* const m_directory;
 
 public:
-    explicit Tls(const Pe<arch>& pe) noexcept : m_directory(pe.directory<DirTls<arch>>())
+    explicit Tls(const Pe<arch>& pe) noexcept
+        : m_pe(pe),
+        , m_directory(pe.directory<DirTls<arch>>())
     {
     }
 
@@ -1953,7 +1960,7 @@ public:
     const typename GenericTypes::FnImageTlsCallback* callbacks() const noexcept
     {
         return valid()
-            ? reinterpret_cast<typename GenericTypes::FnImageTlsCallback*>(m_directory->AddressOfCallBacks)
+            ? m_pe.byRva<typename GenericTypes::FnImageTlsCallback>(m_directory->AddressOfCallBacks)
             : nullptr;
     }
 
