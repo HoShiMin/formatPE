@@ -194,8 +194,8 @@ int main()
     return 0;
 }
 ```
-
-### Build with CMake:
+---
+### 🏗️ Build with CMake:
 
 ```cmake
 # Link formatPE as dependency:

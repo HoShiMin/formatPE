@@ -192,7 +192,7 @@ struct Types<Arch::x32> : public GenericTypes
         struct {
             unsigned int reserved : 31;
             unsigned int importByOrdinal : 1;
-        } type;
+        } importType;
 
         bool valid() const noexcept
         {
@@ -205,7 +205,7 @@ struct Types<Arch::x32> : public GenericTypes
             {
                 return ImportType::unknown;
             }
-            return type.importByOrdinal ? ImportType::ordinal : ImportType::name;
+            return importType.importByOrdinal ? ImportType::ordinal : ImportType::name;
         }
     };
     static_assert(sizeof(ImportAddressTableEntry) == sizeof(unsigned int), "Invalid size of ImportAddressTableEntry");
@@ -238,7 +238,7 @@ struct Types<Arch::x64> : public GenericTypes
         struct {
             unsigned long long reserved : 63;
             unsigned long long importByOrdinal : 1;
-        } type;
+        } importType;
 
         bool valid() const noexcept
         {
@@ -251,7 +251,7 @@ struct Types<Arch::x64> : public GenericTypes
             {
                 return ImportType::unknown;
             }
-            return type.importByOrdinal ? ImportType::ordinal : ImportType::name;
+            return importType.importByOrdinal ? ImportType::ordinal : ImportType::name;
         }
     };
     static_assert(sizeof(ImportAddressTableEntry) == sizeof(unsigned long long), "Invalid size of ImportAddressTableEntry");
@@ -1947,7 +1947,7 @@ private:
 
 public:
     explicit Tls(const Pe<arch>& pe) noexcept
-        : m_pe(pe),
+        : m_pe(pe)
         , m_directory(pe.directory<DirTls<arch>>())
     {
     }
@@ -1960,7 +1960,7 @@ public:
     const typename GenericTypes::FnImageTlsCallback* callbacks() const noexcept
     {
         return valid()
-            ? m_pe.byRva<typename GenericTypes::FnImageTlsCallback>(m_directory->AddressOfCallBacks)
+            ? m_pe.byRva<typename GenericTypes::FnImageTlsCallback>(static_cast<Rva>(m_directory->AddressOfCallBacks))
             : nullptr;
     }
 
