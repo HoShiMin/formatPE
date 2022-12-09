@@ -3,10 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
-# cmake Files
+# CMake files
 [Oo]ut/
 
-# vsocde
 .vscode/
 
 # User-specific files
