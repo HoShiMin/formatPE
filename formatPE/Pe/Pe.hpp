@@ -143,8 +143,10 @@ struct Types<Arch::x32> : public GenericTypes {
         struct {
             unsigned int ord : 16;
         } ordinal;
+        struct {
         unsigned int reserved : 31;
         unsigned int importByOrdinal : 1;
+        };
 
         bool valid() const noexcept { return raw != 0; }
 
@@ -178,8 +180,11 @@ struct Types<Arch::x64> : public GenericTypes {
         struct {
             unsigned long long ord : 16;
         } ordinal;
+
+        struct {
         unsigned long long reserved : 63;
         unsigned long long importByOrdinal : 1;
+        };
 
         bool valid() const noexcept { return raw != 0; }
 
@@ -1318,15 +1323,16 @@ public:
     using CallbackIterator = Iterator<CallbackEntry>;
 
 private:
+    const Pe<arch>& m_pe;
     const typename DirTls<arch>::Type *const m_directory;
 
 public:
-    explicit Tls(const Pe<arch> &pe) noexcept : m_directory(pe.directory<DirTls<arch>>()) {}
+    explicit Tls(const Pe<arch> &pe) noexcept : m_pe(pe), m_directory(pe.directory<DirTls<arch>>()) {}
 
     bool valid() const noexcept { return m_directory != nullptr; }
 
     const typename GenericTypes::FnImageTlsCallback *callbacks() const noexcept {
-        return valid() ? reinterpret_cast<typename GenericTypes::FnImageTlsCallback *>(m_directory->AddressOfCallBacks)
+        return valid() ? m_pe.byRva<typename GenericTypes::FnImageTlsCallback>(m_directory->AddressOfCallBacks)
                        : nullptr;
     }
 
