@@ -281,6 +281,25 @@ using DirDebug = Dir<IMAGE_DEBUG_DIRECTORY, IMAGE_DIRECTORY_ENTRY_DEBUG>;
 template <Arch arch>
 using DirTls = Dir<typename Types<arch>::TlsDir, IMAGE_DIRECTORY_ENTRY_TLS>;
 
+template <typename Dir>
+struct DirectoryDescriptor
+{
+    using DirInfo = Dir;
+
+    const typename Dir::Type* ptr;
+    unsigned long size;
+
+    bool valid() const noexcept
+    {
+        return ptr && size;
+    }
+
+    bool empty() const noexcept
+    {
+        return !valid();
+    }
+};
+
 class Sections; // Arch-independent
 template <Arch> class Imports;
 template <Arch> class DelayedImports;
@@ -418,9 +437,9 @@ public:
     {
     }
 
-    static Pe fromFile(const void* const base) noexcept
+    static Pe fromFile(const void* const buffer) noexcept
     {
-        return Pe(ImgType::file, base);
+        return Pe(ImgType::file, buffer);
     }
 
     static Pe fromModule(const void* const base) noexcept
@@ -490,15 +509,19 @@ public:
     }
 
     template <typename DirType>
-    typename const typename DirType::Type* directory() const noexcept
+    typename DirectoryDescriptor<DirType> directory() const noexcept
     {
         const auto* const directoryHeader = directory(DirType::k_id);
         if (!directoryHeader->Size)
         {
-            return nullptr;
+            return {};
         }
 
-        return byRva<typename DirType::Type>(directoryHeader->VirtualAddress);
+        return DirectoryDescriptor<DirType>
+        {
+            byRva<typename DirType::Type>(directoryHeader->VirtualAddress),
+            directoryHeader->Size
+        };
     }
 
     unsigned long long imageBase() const noexcept
@@ -912,25 +935,25 @@ public:
         return m_pe;
     }
 
-    const typename DirImports::Type* descriptor() const noexcept
+    DirectoryDescriptor<DirImports> descriptor() const noexcept
     {
         return m_pe.directory<DirImports>();
     }
 
     bool valid() const noexcept
     {
-        return descriptor() != nullptr;
+        return descriptor().valid();
     }
 
     bool empty() const noexcept
     {
-        const auto* const importDescriptor = descriptor();
-        return !importDescriptor || !importDescriptor->FirstThunk;
+        const auto importDescriptor = descriptor();
+        return importDescriptor.empty() || !importDescriptor.ptr->FirstThunk;
     }
 
     ModuleIterator begin() const noexcept
     {
-        return ModuleIterator(m_pe, descriptor());
+        return ModuleIterator(m_pe, descriptor().ptr);
     }
 
     typename ModuleIterator::TheEnd end() const noexcept
@@ -1120,25 +1143,25 @@ public:
         return m_pe;
     }
 
-    const typename DirDelayedImports::Type* descriptor() const noexcept
+    DirectoryDescriptor<DirDelayedImports> descriptor() const noexcept
     {
         return m_pe.directory<DirDelayedImports>();
     }
 
     bool valid() const noexcept
     {
-        return descriptor() != nullptr;
+        return descriptor().valid();
     }
 
     bool empty() const noexcept
     {
-        const auto* const importDescriptor = descriptor();
-        return !importDescriptor || !importDescriptor->DllNameRVA;
+        const auto importDescriptor = descriptor();
+        return importDescriptor.empty() || !importDescriptor.ptr->DllNameRVA;
     }
 
     ModuleIterator begin() const noexcept
     {
-        return ModuleIterator(m_pe, descriptor());
+        return ModuleIterator(m_pe, descriptor().ptr);
     }
 
     typename ModuleIterator::TheEnd end() const noexcept
@@ -1317,19 +1340,19 @@ public:
         return m_pe;
     }
 
-    const typename DirBoundImports::Type* descriptor() const noexcept
+    DirectoryDescriptor<DirBoundImports> descriptor() const noexcept
     {
         return m_pe.directory<DirBoundImports>();
     }
 
     bool valid() const noexcept
     {
-        return descriptor() && descriptor()->OffsetModuleName;
+        return descriptor().valid() && descriptor().ptr->OffsetModuleName;
     }
 
     ModuleIterator begin() const noexcept
     {
-        return ModuleIterator(descriptor());
+        return ModuleIterator(descriptor().ptr);
     }
 
     typename ModuleIterator::TheEnd end() const noexcept
@@ -1792,11 +1815,12 @@ public:
 
 private:
     const Pe<arch>& m_pe;
-    const typename DirRelocs::Type* const m_table;
-    const unsigned int m_dirSize;
+    const DirectoryDescriptor<DirRelocs> m_descriptor;
 
 public:
-    explicit Relocs(const Pe<arch>& pe) noexcept : m_pe(pe), m_table(pe.directory<DirRelocs>()), m_dirSize(pe.directory(DirRelocs::k_id)->Size)
+    explicit Relocs(const Pe<arch>& pe) noexcept
+        : m_pe(pe)
+        , m_descriptor(pe.directory<DirRelocs>())
     {
     }
 
@@ -1805,24 +1829,24 @@ public:
         return m_pe;
     }
 
-    const typename DirRelocs::Type* relocationTable() const noexcept
+    DirectoryDescriptor<DirRelocs> descriptor() const noexcept
     {
-        return m_table;
+        return m_descriptor;
     }
 
     bool valid() const noexcept
     {
-        return relocationTable() != nullptr;
+        return m_descriptor.valid();
     }
 
     PageIterator begin() const noexcept
     {
-        return PageIterator(*this, relocationTable());
+        return PageIterator(*this, m_descriptor.ptr);
     }
 
     PageIterator end() const noexcept
     {
-        return PageIterator(*this, reinterpret_cast<const typename DirRelocs::Type*>(reinterpret_cast<const unsigned char*>(relocationTable()) + m_dirSize));
+        return PageIterator(*this, reinterpret_cast<const typename DirRelocs::Type*>(reinterpret_cast<const unsigned char*>(m_descriptor.ptr) + m_descriptor.size));
     }
 };
 
@@ -1858,11 +1882,6 @@ public:
             return runtimeFunction() == entry.runtimeFunction();
         }
 
-        bool operator == (typename Iterator<RuntimeFunctionEntry>::TheEnd) const noexcept
-        {
-            return !valid();
-        }
-
         RuntimeFunctionEntry& operator ++ () noexcept
         {
             ++m_runtimeFunction;
@@ -1873,31 +1892,32 @@ public:
     using RuntimeFunctionIterator = Iterator<RuntimeFunctionEntry>;
 
 private:
-    const typename DirExceptions::Type* const m_runtimeFunctions;
+    const DirectoryDescriptor<DirExceptions> m_descriptor;
 
 public:
-    explicit Exceptions(const Pe<arch>& pe) noexcept : m_runtimeFunctions(pe.directory<DirExceptions>())
+    explicit Exceptions(const Pe<arch>& pe) noexcept
+        : m_descriptor(pe.directory<DirExceptions>())
     {
     }
 
-    const typename DirExceptions::Type* runtimeFunctions() const noexcept
+    const DirectoryDescriptor<DirExceptions>& descriptor() const noexcept
     {
-        return m_runtimeFunctions;
+        return m_descriptor;
     }
 
     bool valid() const noexcept
     {
-        return m_runtimeFunctions != nullptr;
+        return m_descriptor.valid();
     }
 
     RuntimeFunctionIterator begin() const noexcept
     {
-        return RuntimeFunctionIterator(m_runtimeFunctions);
+        return RuntimeFunctionIterator(m_descriptor.ptr);
     }
 
-    typename RuntimeFunctionIterator::TheEnd end() const noexcept
+    RuntimeFunctionIterator end() const noexcept
     {
-        return {};
+        return RuntimeFunctionIterator(reinterpret_cast<const typename DirExceptions::Type*>(reinterpret_cast<const unsigned char*>(m_descriptor.ptr) + m_descriptor.size));
     }
 };
 
@@ -1910,16 +1930,20 @@ public:
     class CallbackEntry
     {
     private:
+        const Tls& m_tls;
         const typename GenericTypes::FnImageTlsCallback* m_callbackPointer;
 
     public:
-        explicit CallbackEntry(const typename GenericTypes::FnImageTlsCallback* const callbacks) : m_callbackPointer(callbacks)
+        explicit CallbackEntry(const Tls& tls, const typename GenericTypes::FnImageTlsCallback* const callbacks)
+            : m_tls(tls)
+            , m_callbackPointer(callbacks)
         {
         }
 
         typename GenericTypes::FnImageTlsCallback callback() const noexcept
         {
-            return *m_callbackPointer;
+            const Rva rva = static_cast<Rva>(static_cast<unsigned long long>(reinterpret_cast<size_t>(*m_callbackPointer)) - m_tls.pe().imageBase());
+            return static_cast<typename GenericTypes::FnImageTlsCallback>(m_tls.pe().byRva<void>(rva));
         }
 
         bool operator == (const CallbackEntry& entry) const noexcept
@@ -1943,7 +1967,7 @@ public:
 
 private:
     const Pe<arch>& m_pe;
-    const typename DirTls<arch>::Type* const m_directory;
+    const DirectoryDescriptor<DirTls<arch>> m_directory;
 
 public:
     explicit Tls(const Pe<arch>& pe) noexcept
@@ -1954,19 +1978,44 @@ public:
 
     bool valid() const noexcept
     {
-        return m_directory != nullptr;
+        return m_directory.valid();
+    }
+
+    const Pe<arch>& pe() const noexcept
+    {
+        return m_pe;
+    }
+
+    const DirectoryDescriptor<DirTls<arch>>& descriptor() const noexcept
+    {
+        return m_directory;
     }
 
     const typename GenericTypes::FnImageTlsCallback* callbacks() const noexcept
     {
-        return valid()
-            ? m_pe.byRva<typename GenericTypes::FnImageTlsCallback>(static_cast<Rva>(m_directory->AddressOfCallBacks))
-            : nullptr;
+        if (!valid())
+        {
+            return nullptr;
+        }
+
+        switch (m_pe.type())
+        {
+        case ImgType::file:
+        {
+            return m_pe.byRva<typename GenericTypes::FnImageTlsCallback>(static_cast<Rva>(m_directory.ptr->AddressOfCallBacks - m_pe.imageBase()));
+        }
+        case ImgType::module:
+        {
+            return reinterpret_cast<typename GenericTypes::FnImageTlsCallback*>(m_directory.ptr->AddressOfCallBacks);
+        }
+        }
+
+        return nullptr;
     }
 
     CallbackIterator begin() const noexcept
     {
-        return CallbackIterator(callbacks());
+        return CallbackIterator(*this, callbacks());
     }
 
     typename CallbackIterator::TheEnd end() const noexcept
@@ -2067,25 +2116,23 @@ public:
 
 private:
     const Pe<arch>& m_pe;
-    const typename GenericTypes::ImgDataDir* const m_directory;
-    const typename DirDebug::Type* const m_debugTable;
+    const DirectoryDescriptor<DirDebug> m_descriptor;
 
 public:
     explicit Debug(const Pe<arch>& pe) noexcept
         : m_pe(pe)
-        , m_directory(pe.directory(DirDebug::k_id))
-        , m_debugTable(pe.directory<DirDebug>())
+        , m_descriptor(pe.directory<DirDebug>())
     {
     }
 
-    const typename DirDebug::Type* debugTable() const noexcept
+    const DirectoryDescriptor<DirDebug>& debugTable() const noexcept
     {
-        return m_debugTable;
+        return m_descriptor;
     }
 
     bool valid() const noexcept
     {
-        return m_debugTable != nullptr;
+        return m_descriptor.valid();
     }
 
     unsigned int count() const noexcept
@@ -2095,17 +2142,17 @@ public:
             return 0;
         }
 
-        return m_directory->Size / sizeof(typename DirDebug::Type);
+        return m_descriptor.size / sizeof(typename DirDebug::Type);
     }
 
     DebugIterator begin() const noexcept
     {
-        return DebugEntry(debugTable());
+        return DebugEntry(m_descriptor.ptr);
     }
 
     DebugIterator end() const noexcept
     {
-        return DebugEntry(debugTable() + count());
+        return DebugEntry(m_descriptor.ptr + count());
     }
 
     const CodeView::DebugInfo* findPdbDebugInfo() const noexcept

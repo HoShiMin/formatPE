@@ -10,6 +10,8 @@
 #include <winternl.h>
 #include <DbgHelp.h>
 
+#include <vector>
+
 namespace tr
 {
 
@@ -235,11 +237,55 @@ void parsePe(const PeObject& pe)
 }
 
 
-
 void testPe()
 {
-    const auto pe = Pe::PeNative::fromModule(GetModuleHandleW(L"ntdll.dll"));
-    parsePe(pe);
+    const HMODULE hModule = GetModuleHandleW(L"ntdll.dll");
+
+    printf("Module:\n");
+
+    const auto modPe = Pe::PeNative::fromModule(hModule);
+    parsePe(modPe);
+    
+
+    printf("\n\nFile:\n");
+
+    wchar_t path[MAX_PATH]{};
+    const auto nameLength = GetModuleFileNameW(hModule, path, static_cast<unsigned int>(std::size(path)));
+    if (!nameLength)
+    {
+        printf("Unable to get the current binary name\n");
+        return;
+    }
+
+    const auto hFile = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        printf("Unable to open the file %ws\n", path);
+        return;
+    }
+    
+    const auto fileSize = GetFileSize(hFile, nullptr);
+    if (!fileSize)
+    {
+        printf("Unable to size of the file %ws\n", path);
+        CloseHandle(hFile);
+        return;
+    }
+
+    std::vector<unsigned char> fileBuf(fileSize);
+    unsigned long readBytes = 0;
+    const bool readStatus = !!ReadFile(hFile, &fileBuf[0], fileSize, &readBytes, nullptr);
+    if (!readStatus)
+    {
+        printf("Unable to read the file %ws\n", path);
+        CloseHandle(hFile);
+        return;
+    }
+
+    CloseHandle(hFile);
+
+    const auto filePe = Pe::PeNative::fromFile(&fileBuf[0]);
+    parsePe(filePe);
 }
 
 
